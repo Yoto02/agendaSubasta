@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Agenda de Citas (9:00–12:00)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{
+      --primary:#0b6efd; --text:#222; --muted:#666; --bg:#fafafa; --card:#fff;
+      --border:#e6e6e6; --danger:#e03131; --success:#2f9e44; --warn:#f08c00;
+    }
+    html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,sans-serif;}
+    .container{max-width:1000px;margin:24px auto;padding:0 16px;}
+    h1{font-size:1.6rem;margin:0 0 8px;}
+    h2{font-size:1.2rem;margin:16px 0 8px;color:var(--muted);}
+    h3{font-size:1.05rem;margin:16px 0 8px;color:var(--text);}
+    h4{margin:12px 0 8px;}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:12px;
+      box-shadow:0 1px 2px rgba(0,0,0,.04);padding:16px;}
+
+    /* ====== Layout ====== */
+    .row{display:flex;gap:12px;flex-wrap:wrap;}
+    .col{flex:1 1 240px;min-width:220px}
+    .field{display:flex;flex-direction:column;gap:6px;margin-bottom:10px;}
+    label{font-size:.9rem;color:var(--muted)}
+    input, select{border:1px solid var(--border);border-radius:10px;background:#fff;color:var(--text);
+      padding:.55rem .7rem;font-size:1rem;width:100%;min-width:0}
+
+    /* ====== Botones ====== */
+    .btn{appearance:none;border:1px solid var(--border);background:#fff;color:#111;border-radius:10px;
+      padding:.55rem .8rem;font-weight:600;cursor:pointer;transition:.15s transform ease,.15s box-shadow ease;white-space:nowrap}
+    .btn:hover{transform:translateY(-1px);box-shadow:0 2px 8px rgba(0,0,0,.06);}
+    .btn.primary{background:var(--primary);border-color:var(--primary);color:#fff;}
+    .btn.danger{background:var(--danger);border-color:var(--danger);color:#fff;}
+    .btn.ghost{background:transparent;border-color:var(--border);color:var(--muted);}
+    .btn.small{padding:.35rem .55rem;font-size:.9rem;border-radius:999px;}
+    .actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+    .hint{font-size:.9rem;color:var(--muted);}
+    .hint-sm{font-size:.8rem;color:var(--muted);}
+    .error{color:var(--danger);font-size:.9rem;display:none}
+    .error.show{display:block}
+    .divider{height:1px;background:var(--border);margin:8px 0;}
+
+    /* ====== Disponibilidad ====== */
+    .grid-slots{
+      display:grid;gap:8px;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      align-items:stretch;
+    }
+    .slot{
+      border:1px solid var(--border);border-radius:10px;padding:10px;background:#fff;
+      display:flex;flex-direction:column;gap:6px;min-height:60px
+    }
+    .slot .time{font-weight:700}
+    .slot .cap{font-size:.85rem;color:var(--muted)}
+    .slot.free{border-color:#cde7d8;background:#f3fbf6}
+    .slot.full{border-color:#ffd8d8;background:#fff5f5}
+    .slot .badge{font-size:.75rem;padding:.15rem .4rem;border-radius:999px;width:max-content}
+    .badge.ok{background:#e6f4ea;color:#0b6b2d;border:1px solid #bde5c8}
+    .badge.full{background:#ffe3e3;color:#8a1c1c;border:1px solid #ffc9c9}
+
+    /* ====== Panel admin ====== */
+    .admin-chip{
+      position:fixed;right:12px;bottom:12px;z-index:50;
+      background:#fff;border:1px solid var(--border);color:var(--muted);
+      border-radius:999px;display:flex;align-items:center;gap:8px;
+      padding:.35rem .6rem;box-shadow:0 2px 8px rgba(0,0,0,.08);
+      cursor:pointer;font-size:.9rem;opacity:.65;
+    }
+    .admin-chip:hover{opacity:1}
+    .admin-dot{width:8px;height:8px;border-radius:999px;background:var(--muted);}
+    .admin-chip.authed .admin-dot{background:var(--success);}
+    .admin-panel{
+      position:fixed;right:12px;bottom:56px;z-index:60;
+      width:min(300px,95vw);
+      background:var(--card);border:1px solid var(--border);
+      border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.12);
+      padding:12px;display:none;
+    }
+    .admin-panel.visible{display:block;}
+    .admin-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+    .admin-title{font-weight:700;font-size:.95rem;}
+
+    /* ====== Modal PIN ====== */
+    .modal{position:fixed;inset:0;background:rgba(0,0,0,.34);display:none;align-items:center;justify-content:center;z-index:70;}
+    .modal.visible{display:flex;}
+    .modal .sheet{background:#fff;border-radius:14px;box-shadow:0 10px 32px rgba(0,0,0,.25);padding:16px;max-width:360px;width:92vw;border:1px solid var(--border);}
+    .sheet h3{margin:0 0 10px;font-size:1.05rem}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>Agenda de Citas</h1>
+      <h2>Agenda de Citas (9:00am – 12:00pm)</h2>
+      <p class="hint">Bloques de 15 minutos, capacidad 10 por bloque. La hora se asigna al siguiente espacio disponible.</p>
+      <p class="hint">SOLO AGENDAR EN FECHAS DEL 10 AL 12 DE NOVIEMBRE, otras fechas no seran tomadas en cuenta</p>
+
+      <!-- ====== Formulario: validación y agendar ====== -->
+      <h3>Agendar cita</h3>
+      <div class="row">
+        <div class="col">
+          <div class="field">
+            <label for="employeeId">Employee ID (6 dígitos)</label>
+            <input id="employeeId" type="text" inputmode="numeric" placeholder="Ej. 123456" maxlength="6" />
+            <div class="hint-sm">Debe ser un número de exactamente 6 dígitos.</div>
+          </div>
+        </div>
+        <div class="col">
+          <div class="field">
+            <label for="fecha">Fecha</label>
+            <input id="fecha" type="date" />
+            <div class="hint-sm">Solo se agenda entre 9:00 y 12:00.</div>
+          </div>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="btnAgendar" class="btn primary">Agendar</button>
+        <span class="hint-sm">Se asignará automáticamente el siguiente bloque con cupo.</span>
+      </div>
+
+      <!-- ====== Disponibilidad del día ====== -->
+      <h4 style="margin-top:16px">Disponibilidad del día</h4>
+      <div id="gridDisponibilidad" class="grid-slots" aria-live="polite"></div>
+
+      <div class="divider"></div>
+
+      <!-- ====== Panel de administrador ====== -->
+      <div class="admin-panel" id="adminPanel" aria-hidden="true" aria-label="Panel de administrador">
+        <div class="admin-header">
+          <div class="admin-title">Panel de administrador</div>
+          <button class="btn small ghost" id="btnCerrarPanel" aria-label="Cerrar panel">✕</button>
+        </div>
+
+        <!-- Error del PIN -->
+        <div id="pinSection">
+          <div class="row" style="align-items:flex-end">
+            <div class="col">
+              <div class="field">
+                <label for="pinInput">PIN de administrador</label>
+                <input id="pinInput" type="password" inputmode="numeric" placeholder="••••" maxlength="8" autocomplete="off"/>
+              </div>
+            </div>
+            <button class="btn small primary" id="btnEntrar">Entrar</button>
+          </div>
+          <div id="pinError" class="error">PIN incorrecto</div>
+          <p class="hint-sm">Solo administradores. PIN requerido.</p>
+          <div class="divider"></div>
+        </div>
+
+        <!-- Acciones del admin -->
+        <div id="adminActions" style="display:none">
+          <div class="row">
+            <div class="col">
+              <div class="field">
+                <label for="intervalo">Intervalo (minutos)</label>
+                <select id="intervalo"><option>15</option></select>
+              </div>
+            </div>
+            <div class="col">
+              <div class="field">
+                <label for="capacidad">Capacidad por bloque</label>
+                <select id="capacidad"></option><option selected>10</select>
+              </div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col">
+              <div class="field">
+                <label for="inicio">Inicio del rango</label>
+                <input id="inicio" type="time" value="09:00"/>
+              </div>
+            </div>
+            <div class="col">
+              <div class="field">
+                <label for="fin">Fin del rango ()</label>
+                <input id="fin" type="time" value="12:00"/>
+              </div>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button class="btn small" id="btnAplicar">Aplicar configuración</button>
+            <button class="btn small" id="btnDescargar">Descargar CSV del día</button>
+            <button class="btn small danger" id="btnBorrar">Borrar citas del día</button>
+            <button class="btn small ghost" id="btnSalir">Cerrar sesión</button>
+          </div>
+          <p class="hint-sm"></p>
+        </div>
+
+        <h4 style="margin:6px 0;">Citas del día</h4>
+        <div id="listaCitas" class="hint-sm">No hay citas aún.</div>
+      </div>
+
+      <!-- Abrir panel de admin -->
+      <button class="admin-chip" id="adminChip" title="Administrador">
+        <span class="admin-dot"></span><span>Admin</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- PIN (primera vez o sin sesión) -->
+  <div class="modal" id="pinModal" role="dialog" aria-modal="true" aria-labelledby="pinTitle">
+    <div class="sheet">
+      <h3 id="pinTitle">Acceso administrador</h3>
+      <label for="pinModalInput">Introduce tu PIN</label>
+      <input id="pinModalInput" type="password" inputmode="numeric" placeholder="••••" maxlength="8" />
+      <div id="pinModalError" class="error">PIN incorrecto</div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+        <button class="btn ghost" id="pinCancel">Cancelar</button>
+        <button class="btn primary" id="pinOk">Entrar</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // =================== Estado & Config ===================
+    const ADMIN_PIN = "1208";                 // Cambiar el PIN
+    const SESSION_KEY = "admin_authed_v1";
+    const STORAGE_KEY = "agenda_citas_v1";    // Estructura: "YYYY-MM-DD"
+
+    // Defaults: 9–12, 15 min, cap 10
+    let cfg = { inicio:"09:00", fin:"12:00", intervalo:15, capacidad:10 };
+    const pad = n => n.toString().padStart(2,"0");
+    const toMinutes = t => { const [h,m]=t.split(":").map(Number); return h*60+m; };
+    const toTime = mins => `${pad(Math.floor(mins/60))}:${pad(mins%60)}`;
+    const rangeSlots = ({inicio, fin, intervalo})=>{
+      const start = toMinutes(inicio), end = toMinutes(fin);
+      const out = [];
+      for(let m=start; m<end; m+=intervalo){ out.push(toTime(m)); }
+      return out;
+    };
+
+    // =================== Persistencia ===================
+    const loadDB = ()=> JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+    const saveDB = (db)=> localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+
+    // =================== DOM refs ===================
+    const qs = (s, el=document)=>el.querySelector(s);
+    const grid = qs("#gridDisponibilidad");
+    const listaCitas = qs("#listaCitas");
+    const employeeId = qs("#employeeId");
+    const fecha = qs("#fecha");
+    const btnAgendar = qs("#btnAgendar");
+
+    const adminChip = qs("#adminChip");
+    const adminPanel = qs("#adminPanel");
+    const pinSection = qs("#pinSection");
+    const adminActions = qs("#adminActions");
+    const pinInput = qs("#pinInput");
+    const pinError = qs("#pinError");
+    const btnEntrar = qs("#btnEntrar");
+    const btnSalir = qs("#btnSalir");
+    const btnCerrarPanel = qs("#btnCerrarPanel");
+    const pinModal = qs("#pinModal");
+    const pinModalInput = qs("#pinModalInput");
+    const pinModalError = qs("#pinModalError");
+    const pinOk = qs("#pinOk");
+    const pinCancel = qs("#pinCancel");
+
+    const selIntervalo = qs("#intervalo");
+    const selCapacidad = qs("#capacidad");
+    const inputInicio = qs("#inicio");
+    const inputFin = qs("#fin");
+    const btnAplicar = qs("#btnAplicar");
+    const btnDesc = qs("#btnDescargar");
+    const btnBorrar = qs("#btnBorrar");
+
+    // =================== Verificar ===================
+    const isAuthed = ()=> localStorage.getItem(SESSION_KEY) === "1";
+    const setAuthed = (v)=>{ v ? localStorage.setItem(SESSION_KEY,"1") : localStorage.removeItem(SESSION_KEY); refreshAuthUI(); };
+    function refreshAuthUI(){
+      const authed = isAuthed();
+      adminChip.classList.toggle("authed", authed);
+      pinSection.style.display = authed ? "none" : "block";
+      adminActions.style.display = authed ? "block" : "none";
+    }
+    function openPanel(){ adminPanel.classList.add("visible"); adminPanel.setAttribute("aria-hidden","false"); if(!isAuthed()) setTimeout(()=>pinInput.focus(), 50); }
+    function closePanel(){ adminPanel.classList.remove("visible"); adminPanel.setAttribute("aria-hidden","true"); pinError.classList.remove("show"); }
+
+    adminChip.addEventListener("click", ()=>{
+      if(isAuthed()){ openPanel(); }
+      else{
+        pinModal.classList.add("visible");
+        pinModalInput.value=""; pinModalError.classList.remove("show");
+        setTimeout(()=>pinModalInput.focus(), 50);
+      }
+    });
+    pinOk.addEventListener("click", ()=>{
+      if(pinModalInput.value === ADMIN_PIN){ setAuthed(true); pinModal.classList.remove("visible"); openPanel(); }
+      else{ pinModalError.classList.add("show"); }
+    });
+    pinCancel.addEventListener("click", ()=> pinModal.classList.remove("visible"));
+    pinModal.addEventListener("click", (e)=>{ if(e.target===pinModal) pinCancel.click(); });
+
+    btnEntrar.addEventListener("click", ()=>{
+      if(pinInput.value === ADMIN_PIN){ pinError.classList.remove("show"); setAuthed(true); }
+      else{ pinError.classList.add("show"); }
+    });
+    btnSalir?.addEventListener("click", ()=> setAuthed(false));
+    btnCerrarPanel?.addEventListener("click", closePanel);
+
+    // =================== Disponibilidad ===================
+    function getDayData(dateStr){
+      const db = loadDB();
+      if(!db[dateStr]) db[dateStr] = {};
+      return {db, day: db[dateStr]};
+    }
+
+    function renderDisponibilidad(){
+      const d = fecha.value || today();
+      const {day} = getDayData(d);
+      const slots = rangeSlots(cfg);
+      grid.innerHTML = "";
+      slots.forEach(t=>{
+        const arr = day[t] || [];
+        const libres = Math.max(cfg.capacidad - arr.length, 0);
+        const free = libres > 0;
+        const slot = document.createElement("div");
+        slot.className = `slot ${free? "free":"full"}`;
+        slot.innerHTML = `
+          <div class="time">${t}</div>
+          <div class="cap">${arr.length}/${cfg.capacidad} reservados</div>
+          <span class="badge ${free?"ok":"full"}">${free? (libres+" libres"):"Lleno"}</span>
+        `;
+        grid.appendChild(slot);
+      });
+      renderListaCitas();
+    }
+
+    function renderListaCitas(){
+      const d = fecha.value || today();
+      const {day} = getDayData(d);
+      const entries = Object.entries(day).filter(([,ids])=>ids && ids.length);
+      if(!entries.length){ listaCitas.textContent = "No hay citas aún."; return; }
+      entries.sort(([a],[b])=> toMinutes(a)-toMinutes(b));
+      listaCitas.innerHTML = entries.map(([t, ids])=> `<div><b>${t}</b>: ${ids.length} cita(s)</div>`).join("");
+    }
+
+    // =================== Agendar: asigna siguiente bloque con cupo ===================
+    function agendar(){
+      const id = (employeeId.value||"").trim();
+      const d = fecha.value || today();
+      if(!/^[0-9]{6}$/.test(id)){ alert("El Employee ID debe tener exactamente 6 dígitos."); return; }
+
+      const db = loadDB();
+      db[d] = db[d] || {};
+      const slots = rangeSlots(cfg);
+
+      // Busca primer slot con cupo
+      const found = slots.find(t=>{
+        const arr = db[d][t] || [];
+        return arr.length < cfg.capacidad && !arr.includes(id);
+      });
+
+      if(!found){ alert("No hay bloques con cupo disponible en ese día."); return; }
+
+      db[d][found] = db[d][found] || [];
+      db[d][found].push(id);
+      saveDB(db);
+      alert(`Cita asignada a las ${found}.`);
+      renderDisponibilidad();
+    }
+
+    // =================== Admin: aplicar, exportar, borrar ===================
+    btnAplicar?.addEventListener("click", ()=>{
+      cfg.intervalo = parseInt(selIntervalo.value,10);
+      cfg.capacidad = parseInt(selCapacidad.value,10);
+      cfg.inicio = inputInicio.value || "09:00";
+      cfg.fin = inputFin.value || "12:00";
+      // Validación simple
+      if(toMinutes(cfg.fin) <= toMinutes(cfg.inicio)){ alert("El fin debe ser mayor que el inicio."); return; }
+      renderDisponibilidad();
+    });
+
+    btnDesc?.addEventListener("click", ()=>{
+      const d = fecha.value || today();
+      const {day} = getDayData(d);
+      const lines = [["Fecha","Hora","EmployeeID"]];
+      Object.entries(day).forEach(([t,ids])=>{
+        ids?.forEach(id=> lines.push([d,t,id]));
+      });
+      const csv = lines.map(r=> r.map(v=> `"${(v??"").toString().replace(/"/g,'""')}"`).join(",")).join("\n");
+      const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `citas_${d}.csv`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+
+    btnBorrar?.addEventListener("click", ()=>{
+      const d = fecha.value || today();
+      if(confirm(`¿Borrar todas las citas del ${d}?`)){
+        const db = loadDB();
+        db[d] = {};
+        saveDB(db);
+        renderDisponibilidad();
+      }
+    });
+
+    // =================== Helpers ===================
+    function today(){
+      const dt = new Date();
+      const y = dt.getFullYear(), m = dt.getMonth()+1, d = dt.getDate();
+      return `${y}-${pad(m)}-${pad(d)}`;
+    }
+
+    // Valores por defecto visuales -> El usuario no puede forzar la hora, solo la fecha.
+    fecha.value = today();
+    selIntervalo.value = String(cfg.intervalo);
+    selCapacidad.value = String(cfg.capacidad);
+    inputInicio.value = cfg.inicio;
+    inputFin.value = cfg.fin;
+
+    btnAgendar.addEventListener("click", agendar);
+
+    document.addEventListener("keydown",(e)=>{
+      if(!isAuthed()) return;
+      if(e.ctrlKey && e.key.toLowerCase()==="e"){ e.preventDefault(); btnDesc?.click(); }
+      if(e.ctrlKey && e.key.toLowerCase()==="b"){ e.preventDefault(); btnBorrar?.click(); }
+    });
+
+    refreshAuthUI();
+    renderDisponibilidad();
+  </script>
+</body>
+</html>
